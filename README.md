@@ -46,12 +46,17 @@ from the command line — no Android Studio needed. From the repo root:
 ```
 setup-android.cmd      One-time: installs JDK 17 + Android SDK/NDK/CMake and fetches submodules
 build-android.cmd      Builds the APK and installs it to phones on USB / Wi-Fi
+a.bat                  Shorthand for build-android.cmd
 ```
 
-`setup-android.cmd` installs only what is missing (re-running is safe), and
-`build-android.cmd` auto-runs setup on first use, so a fresh machine is (mostly)
-ready after the first command. See [pc-build/README.md](pc-build/README.md) for
-options (flavors, release builds, choosing/naming target phones, the emulator).
+`setup-android.cmd` installs only what is missing (re-running is safe). You
+don't have to run it yourself, though: `build-android.cmd` (and its `a.bat`
+shorthand) automatically runs setup when the environment isn't ready — a missing
+SDK path or JDK, or even a build that fails on a machine that never ran setup, in
+which case it repairs the environment and retries the build once. So on a fresh
+machine you can just run `a.bat`. See [pc-build/README.md](pc-build/README.md)
+for options (flavors, release builds, choosing/naming target phones, the
+emulator).
 
 ## APK signing
 

@@ -30,6 +30,25 @@ $ErrorActionPreference = 'Stop'
 $scriptDir = $PSScriptRoot
 $repoRoot = Split-Path $scriptDir -Parent
 
+# Run the one-time setup (setup-android.cmd -> setup.ps1) at most once per build,
+# in THIS process so it leaves JAVA_HOME / PATH set for the gradle step. setup.ps1
+# is re-run-safe (every step checks before acting), so calling it whenever the
+# environment looks incomplete - a missing local.properties, no JDK 17+, or a
+# Gradle build that failed on a first, un-set-up machine - is cheap and idempotent.
+$script:setupRan = $false
+function Invoke-SetupOnce {
+  param([string]$Reason)
+  if ($script:setupRan) { return }
+  $setupScript = Join-Path $scriptDir 'setup.ps1'
+  if (-not (Test-Path $setupScript)) {
+    throw "$Reason and $setupScript was not found - cannot auto-run setup."
+  }
+  Write-Host "$Reason - running one-time setup (setup-android.cmd) first..." -ForegroundColor Yellow
+  & $setupScript
+  $script:setupRan = $true
+  Write-Host 'Setup complete - continuing the build.' -ForegroundColor Green
+}
+
 # local.properties (how Gradle finds the SDK) is created by setup-android.cmd
 # -> setup.ps1 and is gitignored, so a fresh clone or a machine that has never
 # run setup hits this on its first build. Rather than fail and make the user
@@ -38,16 +57,10 @@ $repoRoot = Split-Path $scriptDir -Parent
 # in THIS process, also leaves JAVA_HOME / PATH set for the gradle step below.
 $localProps = Join-Path $repoRoot 'local.properties'
 if (-not (Test-Path $localProps)) {
-  $setupScript = Join-Path $scriptDir 'setup.ps1'
-  if (-not (Test-Path $setupScript)) {
-    throw "local.properties is missing and $setupScript was not found - cannot auto-run setup."
-  }
-  Write-Host 'local.properties is missing - running one-time setup (setup-android.cmd) first...' -ForegroundColor Yellow
-  & $setupScript
+  Invoke-SetupOnce -Reason 'local.properties is missing'
   if (-not (Test-Path $localProps)) {
     throw 'local.properties is still missing after running setup - check the setup output above for the cause, then re-run.'
   }
-  Write-Host 'Setup complete - continuing the build.' -ForegroundColor Green
 }
 
 # JAVA_HOME for gradlew. A machine-wide JAVA_HOME pointing at a VALID but OLD
@@ -71,12 +84,21 @@ if ($env:JAVA_HOME) {
     }
   }
 }
-if ($needJdk) {
-  $jdk = @(Get-ChildItem "$env:ProgramFiles\Microsoft\jdk-*" -Directory -ErrorAction SilentlyContinue) +
-         @(Get-ChildItem "$env:ProgramFiles\Eclipse Adoptium\jdk-*" -Directory -ErrorAction SilentlyContinue) |
+function Find-Jdk17 {
+  @(Get-ChildItem "$env:ProgramFiles\Microsoft\jdk-*" -Directory -ErrorAction SilentlyContinue) +
+  @(Get-ChildItem "$env:ProgramFiles\Eclipse Adoptium\jdk-*" -Directory -ErrorAction SilentlyContinue) |
     Where-Object { $_.Name -match 'jdk-(\d+)' -and [int]$Matches[1] -ge 17 } |
     Sort-Object Name -Descending | Select-Object -First 1
-  if (-not $jdk) { throw 'No JDK 17+ found - run setup-android.cmd once first.' }
+}
+if ($needJdk) {
+  $jdk = Find-Jdk17
+  if (-not $jdk) {
+    # No usable JDK on the machine - the environment isn't set up. Run setup
+    # (it installs OpenJDK 17) and look again rather than failing.
+    Invoke-SetupOnce -Reason 'No JDK 17+ found'
+    $jdk = Find-Jdk17
+    if (-not $jdk) { throw 'No JDK 17+ found even after running setup - check the setup output above, then re-run.' }
+  }
   Write-Host "JAVA_HOME is not a JDK 17+ - using $($jdk.FullName)" -ForegroundColor Yellow
   $env:JAVA_HOME = $jdk.FullName
 }
@@ -133,13 +155,37 @@ try {
   Write-Host "Could not derive version from git - the APK keeps build.gradle's fallback." -ForegroundColor Yellow
 }
 
-Write-Host "Building $task ..." -ForegroundColor Cyan
-Push-Location $repoRoot
-try {
-  & .\gradlew.bat $task --console=plain
-  if ($LASTEXITCODE -ne 0) { throw "Gradle build failed ($task)." }
-} finally {
-  Pop-Location
+# Run the Gradle build; return $true on success. Kept as a function so we can
+# retry it after running setup (below).
+function Invoke-GradleBuild {
+  Write-Host "Building $task ..." -ForegroundColor Cyan
+  Push-Location $repoRoot
+  try {
+    & .\gradlew.bat $task --console=plain
+    return ($LASTEXITCODE -eq 0)
+  } finally {
+    Pop-Location
+  }
+}
+
+if (-not (Invoke-GradleBuild)) {
+  # A build can fail because the environment is only partly set up - a missing
+  # SDK component (the NDK or CMake the native module needs), an un-fetched
+  # submodule, unaccepted licences. If setup hasn't run yet this invocation, run
+  # it now (it installs/repairs all of the above, idempotently) and try once
+  # more before giving up. If setup already ran, the failure is a real build
+  # error, so surface it.
+  if ($script:setupRan) {
+    throw "Gradle build failed ($task) - setup has already run this build, so this is a build error (see the Gradle output above)."
+  }
+  Write-Host "Gradle build failed - running setup-android.cmd to repair the environment, then retrying once..." -ForegroundColor Yellow
+  Invoke-SetupOnce -Reason 'the build failed and the environment may be incomplete'
+  # Re-assert JAVA_HOME/PATH in case setup just installed the JDK.
+  $jdk = Find-Jdk17
+  if ($jdk) { $env:JAVA_HOME = $jdk.FullName; $env:Path = "$env:JAVA_HOME\bin;$env:Path" }
+  if (-not (Invoke-GradleBuild)) {
+    throw "Gradle build still failed ($task) after running setup - see the Gradle output above for the cause."
+  }
 }
 
 # Find the built APK. The output filename depends on the module's archive base

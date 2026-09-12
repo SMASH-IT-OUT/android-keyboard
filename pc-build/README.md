@@ -16,10 +16,14 @@ missing.
 ```
 setup-android.cmd            One-time: JDK 17 + Android SDK/NDK/CMake + submodules
 build-android.cmd            Build the unstable DEBUG APK and install it to phones
+a.bat                        Shorthand for build-android.cmd (args pass through)
 ```
 
-Run both from the **repo root** (the `.cmd` wrappers live there; the PowerShell
-scripts they call live in this `pc-build/` folder).
+Run these from the **repo root** (the `.cmd`/`.bat` wrappers live there; the
+PowerShell scripts they call live in this `pc-build/` folder). In fact
+`setup-android.cmd` is optional as a separate step — `build-android.cmd` (and
+`a.bat`) run it automatically when the environment isn't set up (see below), so
+on a fresh machine you can just run `a.bat`.
 
 ## `setup-android.cmd` — one-time toolchain setup
 
@@ -60,10 +64,19 @@ build-android.cmd -Playstore  the "playstore" flavor
 build-android.cmd -NoInstall  build + Desktop copy only, skip adb
 ```
 
-It is self-healing: if `local.properties` is missing it runs `setup-android.cmd`
-first; if a needed submodule folder is empty it fetches submodules; and it
-verifies `JAVA_HOME` really points at a JDK 17+ (rediscovering one when a stale
-`JAVA_HOME` points at, say, Java 8).
+It is self-healing — if the environment isn't set up, it runs
+`setup-android.cmd` for you rather than failing:
+
+- missing `local.properties` → runs setup first;
+- no JDK 17+ found → runs setup (which installs OpenJDK 17), then continues;
+- empty submodule folder → fetches submodules;
+- **the Gradle build itself fails** (e.g. a missing NDK/CMake or unaccepted
+  licence on a machine that never ran setup) → runs setup to repair the
+  environment and **retries the build once**. If it still fails after setup,
+  that's a real build error and it's reported as such.
+
+`a.bat` is just a short alias for `build-android.cmd`; every switch below works
+with either (`a -Release`, `a -NoInstall`, …).
 
 The build derives a version from git (like the CI does): `versionCode` from
 `git rev-list --first-parent --count master`, `versionName` from
@@ -116,4 +129,4 @@ pc-build/
 
 The repo-root wrappers `setup-android.cmd`, `build-android.cmd`, and
 `run-emulator.cmd` just invoke these under PowerShell (preferring pwsh 7 when
-installed).
+installed); `a.bat` is a short alias for `build-android.cmd`.
