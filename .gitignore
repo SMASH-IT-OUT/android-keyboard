@@ -11,3 +11,8 @@ key.jks
 java/res/raw/mozc.data
 .cxx
 java/src/org/futo/inputmethod/keyboard/internal/KeyboardTextsTable.java
+
+# Local PC build environment (pc-build/): personal, machine-local device lists.
+# Copy the .example.txt templates to these names and fill them in.
+pc-build/device-names.txt
+pc-build/push-devices.txt

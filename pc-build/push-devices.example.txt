@@ -1,0 +1,33 @@
+# FUTO Keyboard — devices to install the APK to on every build.
+#
+# Copy this file to  push-devices.txt  (same folder) and list your devices,
+# one per line. push-devices.txt is gitignored, so your personal list never
+# gets committed; this .example file is the template that ships in the repo.
+#
+# When push-devices.txt exists, `build-android.cmd` installs the APK to EVERY
+# device listed (falling back to pushing the APK into a device's Download folder
+# if `adb install -r` fails on it). When the file is absent, the build keeps its
+# original behaviour: install to whatever single phone is connected.
+#
+# Each non-empty, non-'#' line is an adb target:
+#   - a USB serial, exactly as shown by `adb devices`   (e.g. R58N1234ABC)
+#   - a wireless host:port for adb-over-Wi-Fi           (e.g. 192.168.0.42:5555)
+#     — the build runs `adb connect <host:port>` on it first. Enable wireless
+#       debugging on the device and pair it once with `adb pair` / `adb connect`.
+#
+# Add "= <name>" after a target to NAME that device, so the install log says
+# which phone is getting the build:
+#
+#   R58N1234ABC = Work S21
+#
+# Names are optional; an unnamed device is labelled with the phone's own name
+# (Settings > About phone > Device name), then its model, then its serial. To
+# name devices WITHOUT pinning which ones get the build, put the same lines in
+# device-names.txt instead (see device-names.example.txt) — a name written here
+# wins over one written there for the same device.
+#
+# Blank lines and lines starting with # are ignored.
+#
+# --- your devices below (delete the examples) -------------------------------
+# R58N1234ABC
+# 192.168.0.42:5555

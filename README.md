@@ -38,6 +38,21 @@ You can then open the project in Android Studio and build it that way, or use gr
 ./gradlew assembleStableRelease
 ```
 
+### Windows: build from the command line without Android Studio
+
+On Windows you can set up the whole build environment and install to your phones
+from the command line — no Android Studio needed. From the repo root:
+
+```
+setup-android.cmd      One-time: installs JDK 17 + Android SDK/NDK/CMake and fetches submodules
+build-android.cmd      Builds the APK and installs it to phones on USB / Wi-Fi
+```
+
+`setup-android.cmd` installs only what is missing (re-running is safe), and
+`build-android.cmd` auto-runs setup on first use, so a fresh machine is (mostly)
+ready after the first command. See [pc-build/README.md](pc-build/README.md) for
+options (flavors, release builds, choosing/naming target phones, the emulator).
+
 ## APK signing
 
 For official FUTO Keyboard versions, you can verify the APK's signing key fingerprint for integrity.
