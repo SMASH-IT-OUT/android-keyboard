@@ -176,7 +176,7 @@ public class SettingsValues {
                         RegistryKt.getDefaultActionKey()
                 ));
         mShowsActionKey = mActionKeyId != -1;
-        mIsNumberRowEnabledByUser = prefs.getBoolean(Settings.PREF_ENABLE_NUMBER_ROW, false);
+        mIsNumberRowEnabledByUser = prefs.getBoolean(Settings.PREF_ENABLE_NUMBER_ROW, true);
         mIsNumberRowEnabled = mIsNumberRowEnabledByUser
                 || (inputAttributes.mIsPasswordField && !inputAttributes.mIsNumericalPasswordField)
                 || inputAttributes.mIsEmailField;
