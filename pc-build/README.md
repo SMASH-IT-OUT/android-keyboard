@@ -14,7 +14,7 @@ missing.
 ## Quick start
 
 ```
-setup-android.cmd            One-time: JDK 17 + Android SDK/NDK/CMake + submodules
+setup-android.cmd            One-time: JDK 21 + Android SDK/NDK/CMake + submodules
 build-android.cmd            Build the unstable DEBUG APK and install it to phones
 a.bat                        git pull, then build-android.cmd (args pass through)
 ```
@@ -29,8 +29,13 @@ on a fresh machine you can just run `a.bat`.
 
 Installs, checking before acting so re-runs are safe:
 
-1. **Microsoft OpenJDK 17** via winget (skipped if any JDK 17+ is found). AGP
-   8.10 / Gradle 8.14 need JDK 17+.
+1. **Microsoft OpenJDK 21** via winget (skipped if a JDK 21 is found; prefers an
+   existing major-21 JDK). AGP 8.10 / Gradle 8.14 run on 17+, but 21 is chosen
+   deliberately: it matches FUTO's CI image (`gradle:8.14.3-jdk21`) and Android
+   Studio's bundled JBR 21, so the command-line build and Android Studio share a
+   **compatible Gradle daemon**. A JDK-17 CLI made Gradle treat the JDK-21 daemon
+   as incompatible and start a fresh one every run (the "1 incompatible …
+   Daemons could not be reused" churn).
 2. **Android command-line tools** into `%LOCALAPPDATA%\Android\Sdk`. If the
    pinned download URL 404s (Google rotates the build number), get the current
    "Command line tools only" zip from <https://developer.android.com/studio>
@@ -68,7 +73,7 @@ It is self-healing — if the environment isn't set up, it runs
 `setup-android.cmd` for you rather than failing:
 
 - missing `local.properties` → runs setup first;
-- no JDK 17+ found → runs setup (which installs OpenJDK 17), then continues;
+- no JDK 21 found → runs setup (which installs OpenJDK 21), then continues;
 - empty submodule folder → fetches submodules;
 - **the Gradle build itself fails** (e.g. a missing NDK/CMake or unaccepted
   licence on a machine that never ran setup) → runs setup to repair the

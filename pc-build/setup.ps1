@@ -5,7 +5,8 @@
 # so nothing needs generating to build+install to a phone).
 #
 # Installs, in order, checking before acting so re-runs are safe:
-#   1. Microsoft OpenJDK 17 (via winget) — AGP 8.10 / Gradle 8.14 need JDK 17+.
+#   1. Microsoft OpenJDK 21 (via winget) — matches FUTO CI (gradle:8.14.3-jdk21)
+#      and Android Studio's bundled JBR 21, so both share one Gradle daemon.
 #   2. Android command-line tools -> %LOCALAPPDATA%\Android\Sdk
 #   3. SDK licenses + platform-tools, platforms;android-35, build-tools;35.0.0,
 #      ndk;28.2.13676358 and cmake;3.22.1 (the native/jni build needs the NDK +
@@ -27,23 +28,33 @@ $sdkRoot = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
 
 function Write-Step([string]$text) { Write-Host "`n== $text" -ForegroundColor Cyan }
 
-# ---------------------------------------------------------------- 1. JDK 17+
-Write-Step 'JDK 17+'
+# ---------------------------------------------------------------- 1. JDK 21
+# JDK 21, not 17: AGP 8.10 / Gradle 8.14 run on either, but this project's own
+# toolchain standardises on 21 - FUTO's CI image is gradle:8.14.3-jdk21 and
+# Android Studio bundles a JBR 21. Matching that here means the command-line
+# build and Android Studio share a COMPATIBLE Gradle daemon; a JDK-17 CLI made
+# Gradle report the JBR-21 daemon "incompatible" and spin up a fresh one every
+# time (the "1 incompatible ... Daemons could not be reused" churn).
+Write-Step 'JDK 21'
 $javaHome = $null
+# Prefer a JDK whose major is exactly 21 (matches Android Studio's JBR and CI,
+# so the daemon is shared); otherwise accept a newer one, highest first.
 $jdkDirs = @(Get-ChildItem "$env:ProgramFiles\Microsoft\jdk-*" -Directory -ErrorAction SilentlyContinue) +
            @(Get-ChildItem "$env:ProgramFiles\Eclipse Adoptium\jdk-*" -Directory -ErrorAction SilentlyContinue)
 $jdkDirs = $jdkDirs | Where-Object {
-  # jdk-17.0.12+7 style names: take major from the leading number
-  $_.Name -match 'jdk-(\d+)' -and [int]$Matches[1] -ge 17
-} | Sort-Object Name -Descending
-if ($jdkDirs) {
-  $javaHome = $jdkDirs[0].FullName
+  # jdk-21.0.4+7 style names: take major from the leading number
+  $_.Name -match 'jdk-(\d+)' -and [int]$Matches[1] -ge 21
+}
+$jdk21 = $jdkDirs | Where-Object { $_.Name -match 'jdk-21' } | Sort-Object Name -Descending | Select-Object -First 1
+if (-not $jdk21) { $jdk21 = $jdkDirs | Sort-Object Name -Descending | Select-Object -First 1 }
+if ($jdk21) {
+  $javaHome = $jdk21.FullName
   Write-Host "Found JDK: $javaHome"
 } else {
-  Write-Host 'No JDK 17+ found - installing Microsoft OpenJDK 17 via winget...'
-  winget install --id Microsoft.OpenJDK.17 -e --accept-source-agreements --accept-package-agreements
-  if ($LASTEXITCODE -ne 0) { throw 'winget could not install Microsoft.OpenJDK.17 - install a JDK 17+ manually, then re-run.' }
-  $jdkDirs = Get-ChildItem "$env:ProgramFiles\Microsoft\jdk-17*" -Directory | Sort-Object Name -Descending
+  Write-Host 'No JDK 21+ found - installing Microsoft OpenJDK 21 via winget...'
+  winget install --id Microsoft.OpenJDK.21 -e --accept-source-agreements --accept-package-agreements
+  if ($LASTEXITCODE -ne 0) { throw 'winget could not install Microsoft.OpenJDK.21 - install a JDK 21 manually, then re-run.' }
+  $jdkDirs = Get-ChildItem "$env:ProgramFiles\Microsoft\jdk-21*" -Directory | Sort-Object Name -Descending
   if (-not $jdkDirs) { throw 'JDK installed but not found under Program Files\Microsoft - open a NEW terminal and re-run.' }
   $javaHome = $jdkDirs[0].FullName
 }

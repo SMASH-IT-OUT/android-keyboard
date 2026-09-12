@@ -33,7 +33,7 @@ $repoRoot = Split-Path $scriptDir -Parent
 # Run the one-time setup (setup-android.cmd -> setup.ps1) at most once per build,
 # in THIS process so it leaves JAVA_HOME / PATH set for the gradle step. setup.ps1
 # is re-run-safe (every step checks before acting), so calling it whenever the
-# environment looks incomplete - a missing local.properties, no JDK 17+, or a
+# environment looks incomplete - a missing local.properties, no JDK 21, or a
 # Gradle build that failed on a first, un-set-up machine - is cheap and idempotent.
 $script:setupRan = $false
 function Invoke-SetupOnce {
@@ -65,7 +65,7 @@ if (-not (Test-Path $localProps)) {
 
 # JAVA_HOME for gradlew. A machine-wide JAVA_HOME pointing at a VALID but OLD
 # install (Java 8 is common) sails through a naive "unset or missing" guard and
-# hands Gradle a Java 8 JVM. So: verify the inherited JAVA_HOME really is a 17+
+# hands Gradle a Java 8 JVM. So: verify the inherited JAVA_HOME really is a 21+
 # JDK, and rediscover when it isn't.
 $needJdk = $true
 if ($env:JAVA_HOME) {
@@ -80,26 +80,33 @@ if ($env:JAVA_HOME) {
     if ($m) {
       $major = [int]$m.Matches[0].Groups[1].Value
       if ($major -eq 1 -and $m.Matches[0].Groups[2].Success) { $major = [int]$m.Matches[0].Groups[2].Value }
-      if ($major -ge 17) { $needJdk = $false }
+      # Require 21, not merely 17: a JDK-17 daemon is "incompatible" with the
+      # JDK-21 daemon Android Studio / FUTO CI use, so Gradle can't reuse it and
+      # spins a fresh one each run. Standardising on 21 lets the daemon be shared.
+      if ($major -ge 21) { $needJdk = $false }
     }
   }
 }
-function Find-Jdk17 {
-  @(Get-ChildItem "$env:ProgramFiles\Microsoft\jdk-*" -Directory -ErrorAction SilentlyContinue) +
-  @(Get-ChildItem "$env:ProgramFiles\Eclipse Adoptium\jdk-*" -Directory -ErrorAction SilentlyContinue) |
-    Where-Object { $_.Name -match 'jdk-(\d+)' -and [int]$Matches[1] -ge 17 } |
-    Sort-Object Name -Descending | Select-Object -First 1
+# Prefer a JDK whose major is exactly 21 (matches Android Studio's JBR and CI so
+# the Gradle daemon is shared); otherwise accept a newer one, highest first.
+function Find-Jdk {
+  $cands = @(Get-ChildItem "$env:ProgramFiles\Microsoft\jdk-*" -Directory -ErrorAction SilentlyContinue) +
+           @(Get-ChildItem "$env:ProgramFiles\Eclipse Adoptium\jdk-*" -Directory -ErrorAction SilentlyContinue) |
+    Where-Object { $_.Name -match 'jdk-(\d+)' -and [int]$Matches[1] -ge 21 }
+  $exact = $cands | Where-Object { $_.Name -match 'jdk-21' } | Sort-Object Name -Descending | Select-Object -First 1
+  if ($exact) { return $exact }
+  return ($cands | Sort-Object Name -Descending | Select-Object -First 1)
 }
 if ($needJdk) {
-  $jdk = Find-Jdk17
+  $jdk = Find-Jdk
   if (-not $jdk) {
     # No usable JDK on the machine - the environment isn't set up. Run setup
-    # (it installs OpenJDK 17) and look again rather than failing.
-    Invoke-SetupOnce -Reason 'No JDK 17+ found'
-    $jdk = Find-Jdk17
-    if (-not $jdk) { throw 'No JDK 17+ found even after running setup - check the setup output above, then re-run.' }
+    # (it installs OpenJDK 21) and look again rather than failing.
+    Invoke-SetupOnce -Reason 'No JDK 21 found'
+    $jdk = Find-Jdk
+    if (-not $jdk) { throw 'No JDK 21 found even after running setup - check the setup output above, then re-run.' }
   }
-  Write-Host "JAVA_HOME is not a JDK 17+ - using $($jdk.FullName)" -ForegroundColor Yellow
+  Write-Host "JAVA_HOME is not a JDK 21 - using $($jdk.FullName)" -ForegroundColor Yellow
   $env:JAVA_HOME = $jdk.FullName
 }
 # Chosen JDK first on PATH so gradlew's child processes agree with JAVA_HOME.
@@ -201,7 +208,7 @@ if (-not $script:buildOk) {
   Write-Host "Gradle build failed - running setup-android.cmd to repair the environment, then retrying once..." -ForegroundColor Yellow
   Invoke-SetupOnce -Reason 'the build failed and the environment may be incomplete'
   # Re-assert JAVA_HOME/PATH in case setup just installed the JDK.
-  $jdk = Find-Jdk17
+  $jdk = Find-Jdk
   if ($jdk) { $env:JAVA_HOME = $jdk.FullName; $env:Path = "$env:JAVA_HOME\bin;$env:Path" }
   Invoke-GradleBuild
   if (-not $script:buildOk) {
