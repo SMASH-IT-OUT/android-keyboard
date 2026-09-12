@@ -16,7 +16,7 @@ missing.
 ```
 setup-android.cmd            One-time: JDK 17 + Android SDK/NDK/CMake + submodules
 build-android.cmd            Build the unstable DEBUG APK and install it to phones
-a.bat                        Shorthand for build-android.cmd (args pass through)
+a.bat                        git pull, then build-android.cmd (args pass through)
 ```
 
 Run these from the **repo root** (the `.cmd`/`.bat` wrappers live there; the
@@ -75,8 +75,11 @@ It is self-healing — if the environment isn't set up, it runs
   environment and **retries the build once**. If it still fails after setup,
   that's a real build error and it's reported as such.
 
-`a.bat` is just a short alias for `build-android.cmd`; every switch below works
-with either (`a -Release`, `a -NoInstall`, …).
+`a.bat` is the everyday shorthand: it runs `git pull` first (best-effort — a
+failed pull, e.g. offline or with local changes, just warns and builds the
+current checkout) and then calls `build-android.cmd`. Every switch below works
+with either (`a -Release`, `a -NoInstall`, …). Use `build-android.cmd` directly
+when you want to build **without** pulling.
 
 The build derives a version from git (like the CI does): `versionCode` from
 `git rev-list --first-parent --count master`, `versionName` from
@@ -129,4 +132,4 @@ pc-build/
 
 The repo-root wrappers `setup-android.cmd`, `build-android.cmd`, and
 `run-emulator.cmd` just invoke these under PowerShell (preferring pwsh 7 when
-installed); `a.bat` is a short alias for `build-android.cmd`.
+installed); `a.bat` runs `git pull` and then `build-android.cmd`.
