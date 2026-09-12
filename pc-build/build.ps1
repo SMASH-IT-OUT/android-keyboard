@@ -155,20 +155,40 @@ try {
   Write-Host "Could not derive version from git - the APK keeps build.gradle's fallback." -ForegroundColor Yellow
 }
 
-# Run the Gradle build; return $true on success. Kept as a function so we can
-# retry it after running setup (below).
+# Force the Python interpreter into UTF-8 mode for the whole build. The
+# :updateLocales Gradle task runs tools/make-keyboard-text-py (generate.py),
+# which open()s UTF-8 JSON without an explicit encoding; on Windows Python then
+# defaults to the legacy cp1252 code page and dies with a UnicodeDecodeError on
+# the first non-cp1252 byte (byte 0x81 was the reported case). PYTHONUTF8=1 makes
+# open()/stdio default to UTF-8 regardless of the system locale (Python 3.7+),
+# which is the correct encoding for that data. Set here so the child gradle -> child
+# python inherit it. (generate.py is also fixed at source, but this covers any
+# other Python the build shells out to.)
+$env:PYTHONUTF8 = '1'
+$env:PYTHONIOENCODING = 'utf-8'
+
+# Run the Gradle build, recording success in a SCRIPT-SCOPE flag rather than a
+# return value. A function's return value is everything written to its output
+# stream, and `& .\gradlew.bat` writes all of Gradle's stdout there - so a
+# `return ($LASTEXITCODE -eq 0)` actually returns an array of [gradle output...,
+# boolean], which `-not (...)` sees as a non-empty (truthy) collection. That made
+# a FAILED build look like it succeeded and fall through to the "no APK" error.
+# Reading $script:buildOk sidesteps the capture entirely (the Gradle output just
+# goes to the console, which is what we want).
+$script:buildOk = $false
 function Invoke-GradleBuild {
   Write-Host "Building $task ..." -ForegroundColor Cyan
   Push-Location $repoRoot
   try {
     & .\gradlew.bat $task --console=plain
-    return ($LASTEXITCODE -eq 0)
+    $script:buildOk = ($LASTEXITCODE -eq 0)
   } finally {
     Pop-Location
   }
 }
 
-if (-not (Invoke-GradleBuild)) {
+Invoke-GradleBuild
+if (-not $script:buildOk) {
   # A build can fail because the environment is only partly set up - a missing
   # SDK component (the NDK or CMake the native module needs), an un-fetched
   # submodule, unaccepted licences. If setup hasn't run yet this invocation, run
@@ -183,7 +203,8 @@ if (-not (Invoke-GradleBuild)) {
   # Re-assert JAVA_HOME/PATH in case setup just installed the JDK.
   $jdk = Find-Jdk17
   if ($jdk) { $env:JAVA_HOME = $jdk.FullName; $env:Path = "$env:JAVA_HOME\bin;$env:Path" }
-  if (-not (Invoke-GradleBuild)) {
+  Invoke-GradleBuild
+  if (-not $script:buildOk) {
     throw "Gradle build still failed ($task) after running setup - see the Gradle output above for the cause."
   }
 }
