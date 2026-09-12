@@ -1,0 +1,39 @@
+# FUTO Keyboard — friendly names for your phones/tablets.
+#
+# Copy this file to  device-names.txt  (same folder) and name your devices, one
+# per line. device-names.txt is gitignored, so your personal list never gets
+# committed; this .example file is the template that ships in the repo.
+#
+# The build prints the name beside every install line, so a push to several
+# devices says WHICH phone is getting the update instead of two adb serials
+# that look alike:
+#
+#   Installing 0.0.0-r51 to 2 connected device(s): Work S21, Site A52
+#   -> Work S21  (adb-R5CRB1FAXLP-D8MCCO._adb-tls-connect._tcp)
+#   Success
+#   -> Site A52  (adb-RFCR304ZFGT-gFSVs5._adb-tls-connect._tcp)
+#   Success
+#   Installed 0.0.0-r51 to: Work S21, Site A52
+#
+# Format — one per line:
+#
+#   <serial or fragment> = <name>
+#
+# The left side matches an adb target exactly, OR as a fragment of one. Use a
+# fragment for wireless debugging: the mDNS target
+# adb-R5CRB1FAXLP-D8MCCO._adb-tls-connect._tcp embeds the USB serial
+# (R5CRB1FAXLP) and its trailing -D8MCCO changes every time you re-pair, so
+# naming the serial alone keeps working. `adb devices` lists the exact targets.
+#
+# Naming is optional and independent of WHICH devices get the build: it applies
+# both to auto-detected connected devices and to the ones listed in
+# push-devices.txt (where you can also write "= <name>" inline, and that inline
+# name wins). Devices you never name here are labelled with the phone's own
+# name — Settings > About phone > Device name — then its model, then its serial.
+#
+# Blank lines and lines starting with # are ignored.
+#
+# --- your devices below (delete the examples) -------------------------------
+# R5CRB1FAXLP = Work S21
+# RFCR304ZFGT = Site A52
+# 192.168.0.42:5555 = Kitchen tablet
