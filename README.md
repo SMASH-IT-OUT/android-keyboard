@@ -44,7 +44,7 @@ On Windows you can set up the whole build environment and install to your phones
 from the command line — no Android Studio needed. From the repo root:
 
 ```
-setup-android.cmd      One-time: installs JDK 17 + Android SDK/NDK/CMake and fetches submodules
+setup-android.cmd      One-time: installs JDK 21 + Android SDK/NDK/CMake and fetches submodules
 build-android.cmd      Builds the APK and installs it to phones on USB / Wi-Fi
 a.bat                  git pull, then build-android.cmd (the everyday command)
 ```
